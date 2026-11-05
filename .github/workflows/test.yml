@@ -1,22 +1,37 @@
-on: [push, pull_request]
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - edited
+      - converted_to_draft
+  workflow_dispatch:
 name: Test
 jobs:
   test:
+    if: ${{ (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (github.event.action != 'edited' || github.event.changes.base != null))) }}
     strategy:
       matrix:
         go-version: [1.15.x, 1.16.x]
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-    - name: Install Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: ${{ matrix.go-version }}
-    - name: Install Dependencies
-      run: go get honnef.co/go/tools/cmd/staticcheck
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - name: Static Check
-      run: staticcheck ./...
-    - name: Test
-      run: go test -race ./...
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Install Dependencies
+        run: go get honnef.co/go/tools/cmd/staticcheck
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Static Check
+        run: staticcheck ./...
+      - name: Test
+        run: go test -race ./...
+concurrency:
+  group: batch-${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'edited' && github.event.changes.base == null && github.run_id || 'candidate' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
